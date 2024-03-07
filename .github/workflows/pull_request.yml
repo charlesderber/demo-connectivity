@@ -1,0 +1,74 @@
+name: "PullRequest"
+ 
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+ 
+jobs:
+  terraform:
+    name: 'Terraform'
+    env:
+      ARM_CLIENT_ID: ${{ secrets.AZURE_AD_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.AZURE_AD_CLIENT_SECRET }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      ARM_TENANT_ID: ${{ secrets.AZURE_AD_TENANT_ID }}
+      ARM_ACCESS_KEY: ${{ secrets.AZURE_STORAGE_ACCESS_KEY }}
+      TF_VAR_deployment_environment: prod
+      TF_VAR_expressroute_sp_sdx_shared_key: ${{ secrets.EXPRESSROUTE_SP_SDX_SHARED_KEY }}
+      TF_VAR_connectivitytest_vm_password : ${{ secrets.CONNECTIVITYTEST_VM_PASSWORD}}
+    runs-on: ubuntu-latest
+    environment: prod
+    concurrency: prod
+ 
+    # Bruk Bash shell uavhengig av type os
+    defaults:
+      run:
+        shell: bash
+ 
+    steps:
+      # Last ned repository
+      - name: Checkout
+        uses: actions/checkout@v2
+ 
+      # Konfigurer Terraform
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+ 
+      # Formater terraform koden
+      - name: Terraform fmt
+        id: fmt
+        run: terraform fmt -check -diff
+        continue-on-error: true
+ 
+      # Initialiser terraform
+      - name: Terraform Init
+        id: init
+        run: terraform init -upgrade
+        continue-on-error: true
+ 
+      # Valider konfigurasjon i GitHub Action workflow
+      - name: Terraform Validate
+        id: validate
+        run: terraform validate -no-color
+        continue-on-error: true
+ 
+      # Kjør terraform plan for å se endringene på infrastrukturen
+      - name: Terraform Plan
+        id: plan
+        run: terraform plan -no-color
+        continue-on-error: true
+ 
+      # Logg resultater
+      - name: "End results"
+        shell: bash
+        run: |
+          echo fmt
+          test ${{ steps.fmt.outputs.exitcode }} -eq 0
+          echo init
+          test ${{ steps.init.outputs.exitcode }} -eq 0
+          echo validate
+          test ${{ steps.validate.outputs.exitcode }} -eq 0
+          echo plan
+          test ${{ steps.plan.outputs.exitcode }} -eq 0
